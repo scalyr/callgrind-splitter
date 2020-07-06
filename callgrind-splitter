@@ -1,0 +1,62 @@
+#!/usr/bin/env python
+
+# This script will split a file that is a concatenation of multiple
+# callgrind files into the individual files.
+#
+# It is especially useful when extracting profiling information obtained
+# using the scalyr agent's profiling feature because the agent will upload
+# each run of the profiler under the same logfile name `agent.callgrind`.
+#
+# When you use the scalyr-tool to download the profiling information, it is
+# likely that it will contain multiple callgrind files uploaded separately.
+#
+# For example, say a customer has turned on profiling for their agents, and
+# we want to obtain the profiles from a specific serverHost.  You would
+# run the scalyr tool with the following options to get the profiling data
+# from the previous 24h:
+#
+#  ./scalyr download-log --serverHost <server-host> --logfile agent.callgrind --start 24h > agent.callgrind
+#
+# Then you could use callgrind-splitter to split that out in to multiple files:
+#
+#  ./callgrind-splitter agent.callgrind agent-
+#
+# If the original `agent.callgrind` file contained 4 different profiling runs
+# this will be split into `agent-01.callgrind`, `agent-02.callgrind`,
+# `agent-03.callgrind` and `agent-04.callgrind`
+#
+# Each of these can then be loaded in a program that allows you to view callgrind files.
+
+import sys
+import re
+
+args = sys.argv[1:]
+
+if len(args) != 2:
+    print("Usage: callgrind-splitter <input-file> <output-prefix>\n")
+    sys.exit(1)
+
+# The first line of any callgrind file will contain the version string,
+# so use that to identify the start of each file.
+file_start = re.compile("^version:")
+
+input_file = args[0]
+output_prefix = args[1]
+output_file = None
+count = 0
+
+with open(input_file, "r") as i:
+    for line in i.readlines():
+        m = file_start.match(line)
+        if m:
+            count = count + 1
+            if output_file is not None:
+                output_file.close()
+            filename = "%s%03d.callgrind" % (output_prefix, count)
+            output_file = open(filename, "w")
+
+        if output_file:
+            output_file.write(line)
+
+if output_file:
+    output_file.close()
